@@ -2,6 +2,7 @@ require("./config/db.config")
 const express = require('express');
 const app = express();
 const userModel = require("./models/user.model");
+const tweetModel = require("./models/tweet.model")
 const bcrypt = require("bcrypt")
 const jwt = require("jsonwebtoken")
 const cookieParser = require("cookie-parser")
@@ -26,6 +27,24 @@ app.use(flash());
 app.get("/", function(req, res) {
     res.render("welcome");
 });
+app.get("/feed", isLoggedIn, async function (req, res) {
+    let tweets = await tweetModel.find()
+    res.render("feed", { tweets });
+})
+
+app.get("/createpost", isLoggedIn, function (req, res) {
+    res.render("createpost");
+})
+app.post("/createpost", isLoggedIn, async function (req, res) {
+    let { tweet } = req.body;
+    await tweetModel.create({
+        tweet,
+        username: req.user.username
+    })
+    res.redirect("/feed");
+})
+
+
 app.get("/profile", isLoggedIn,async function (req, res) {
     let user = await userModel.findOne({ username: req.user.username });
 
@@ -77,11 +96,11 @@ app.post("/login",async function(req, res) {
     }
     bcrypt.compare(password,user.password, function(err,result){
         if(result){
-            let token = jwt.sign({username},screte)
+            let token = jwt.sign({username},"screte")
             res.cookie("token",token)
             res.redirect("/profile");
 
-            res.send(loggedin);
+            
         }
         else {
             req.flash("error", "username or password is incorrect.")
@@ -109,6 +128,24 @@ function isLoggedIn(req,res,next){
     }
     })
 }
+
+function redirectToFeed(req, res, next) {
+    if (req.cookies.token) {
+        jwt.verify(req.cookies.token, "secret", function (err, decoded) {
+            if (err) {
+                res.cookie("token", "");
+                return next();
+            }
+            else {
+                res.redirect("/feed");
+            }
+        })
+    }
+    else{
+        return next();
+    }
+}
+
 // Start the server on port 3000
 app.listen(3000, () => {
     console.log("Server is running on port 3000");
